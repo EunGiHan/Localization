@@ -50,6 +50,9 @@ class OdometricLocalization:
         self.pitch = 0
         self.yaw = 0
 
+        self.delta_theta_callback = 0
+        self.delta_theta = 0
+
         #encoder
         self.rotate_right = 12  # 우측 바퀴 엔코더 회전값
         self.rotate_left = 10   # 좌측 바퀴 엔코더 회전값
@@ -60,29 +63,34 @@ class OdometricLocalization:
 
     # IMU 지자기 센서 콜백 함수
     def imu_magnetic_callback(self, msg):
-        self.magnetic_x = msg.magnetic_field.x
-        self.magnetic_y = msg.magnetic_field.y
-        self.magnetic_z = msg.magnetic_field.z
+        pass
+        # self.magnetic_x = msg.magnetic_field.x
+        # self.magnetic_y = msg.magnetic_field.y
+        # self.magnetic_z = msg.magnetic_field.z
 
     # IMU 각속도 센서 콜백 함수
     def imu_data_callback(self, msg):
-        self.pitch = 180 * math.atan2(msg.linear_acceleration.x, math.sqrt(msg.linear_acceleration.y**2 + msg.linear_acceleration.z**2))/math.pi
-        self.roll = 180 * math.atan2(msg.linear_acceleration.y, math.sqrt(msg.linear_acceleration.y**2 + msg.linear_acceleration.z**2))/math.pi
+        # self.pitch = 180 * math.atan2(msg.linear_acceleration.x, math.sqrt(msg.linear_acceleration.y**2 + msg.linear_acceleration.z**2))/math.pi
+        # self.roll = 180 * math.atan2(msg.linear_acceleration.y, math.sqrt(msg.linear_acceleration.y**2 + msg.linear_acceleration.z**2))/math.pi
 
-        self.mag_x = self.magnetic_x*math.cos(self.pitch) + self.magnetic_y*math.sin(self.roll)*math.sin(self.pitch) + self.magnetic_z*math.cos(self.roll)*math.sin(self.pitch)
-        self.mag_y = self.magnetic_y * math.cos(self.roll) - self.magnetic_z * math.sin(self.roll)
-        self.yaw = 180 * math.atan2(-self.mag_y,self.mag_x)/math.pi
+        # self.mag_x = self.magnetic_x*math.cos(self.pitch) + self.magnetic_y*math.sin(self.roll)*math.sin(self.pitch) + self.magnetic_z*math.cos(self.roll)*math.sin(self.pitch)
+        # self.mag_y = self.magnetic_y * math.cos(self.roll) - self.magnetic_z * math.sin(self.roll)
+        # self.yaw = 180 * math.atan2(-self.mag_y,self.mag_x)/math.pi
 
         #self.theta = self.yaw
 
+        self.delta_theta_callback = msg.angular_velocity.z  #[rad/s] ####* (180 / math.pi)
+
     # 엔코더 콜백 함수
     def encoder_callback(self, msg):
+        pass
         #self.rotate_left = msg.#################
         #self.rotate_right = msg.################
 
     # 위치 계산 함수
     def calc_location(self):
-        ## 시간 업데이트
+        self.delta_theta = self.delta_theta_callback
+        ## 시간 업데이트 -> 이때의 값으로 여기서 불러오자. 콜백에서 바로 쓰지 말고
         self.t_old = self.t_new
         self.t_new = time.time()
         self.t_delta = float(self.t_new - self.t_old)
@@ -92,13 +100,15 @@ class OdometricLocalization:
         self.t_now = time.strftime('%Y-%m-%d %I:%M:%S %p', t) #현 시각 문자열로 // 또는 self.t_now = time.ctime(self.t_new)
 
         ## 전진속도와 회전속도 계산 with 엔코더
-        self.transitional_velocity = self.radius_wheel * (self.rotate_right + self.rotate_left) / (2 * self.t_delta)
+        self.transitional_velocity = 0.05 #self.radius_wheel * (self.rotate_right + self.rotate_left) / (2 * self.t_delta)
         self.rotational_velocity = self.radius_wheel * (self.rotate_right - self.rotate_left) / (2 * self.distance_btw_wheel)
         print("v=", self.transitional_velocity)
         print("w=", self.rotational_velocity)
 
 
         ## 회전각 계산
+        self.yaw += self.delta_theta * self.t_delta #누적 지움
+        print("yaw", self.yaw)
         self.theta = self.routes[-1][3] + self.rotational_velocity*self.t_delta
         print("theta=", self.theta)
 
@@ -111,11 +121,14 @@ class OdometricLocalization:
         else:
             #exact integration
             print("w!=0")
-            x = self.routes[-1][1] + (self.transitional_velocity/self.rotational_velocity) * (math.sin(self.routes[-1][3]) - math.sin(self.theta))
-            y = self.routes[-1][2] - (self.transitional_velocity/self.rotational_velocity) * (math.cos(self.routes[-1][3]) - math.cos(self.theta))
+            # x = self.routes[-1][1] + (self.transitional_velocity/self.rotational_velocity) * (math.sin(self.routes[-1][3]) - math.sin(self.theta))
+            # y = self.routes[-1][2] - (self.transitional_velocity/self.rotational_velocity) * (math.cos(self.routes[-1][3]) - math.cos(self.theta))
+            x = self.routes[-1][1] + self.transitional_velocity * math.sin(self.yaw) * self.t_delta
+            y = self.routes[-1][2] + self.transitional_velocity * math.cos(self.yaw) * self.t_delta
 
         ## 계산해낸 현재 새 위치
-        self.new_loc = [self.t_now, x, y, self.theta, self.transitional_velocity, self.rotational_velocity, self.t_delta]
+        self.new_loc = [self.t_now, x, y, self.theta, self.transitional_velocity, self.yaw, self.t_delta]
+        # self.new_loc = [self.t_now, x, y, self.theta, self.transitional_velocity, self.rotational_velocity, self.t_delta]
         self.routes.append(self.new_loc)
         self.location_pub()
     
@@ -137,8 +150,10 @@ def main():
         rate.sleep()
     
     # 누적된 위치 정보를 csv로 저장
-    nparray = numpy.asarray(loc.routes)
-    numpy.savetxt("routes.csv", nparray, fmt='%s', delimiter=",")
+    t = time.localtime(time.time())
+    t_str = time.strftime('%m-%d %I:%M:%S %p', t)
+    nparray = np.asarray(loc.routes)
+    np.savetxt("routes("+t_str+").csv", nparray, fmt='%s', delimiter=",")
 
 
 if __name__ == '__main__':
