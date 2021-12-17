@@ -124,7 +124,7 @@ class OdometricLocalization:
 
     ### 현재 위치 계산 함수
     def calc_location(self):
-        ### 현재 시간에서의 가속도와 각속도 값을 불러옴 (나중에 엔코더 부분도 추가해야 함)
+        ### 현재 시간에서의 가속도와 각속도, 엔코더 값을 불러옴
         self.linear_accel_x = self.linear_accel_x_callback
         self.linear_accel_y = self.linear_accel_y_callback
         self.rotate_right = self.rotate_right_callback
@@ -143,7 +143,6 @@ class OdometricLocalization:
         ### 전진속도와 회전속도 계산(엔코더 ver)
         self.transitional_velocity = self.radius_wheel * (self.rotate_right + self.rotate_left) / (2 * self.t_delta)
         self.rotational_velocity = self.radius_wheel * (self.rotate_right - self.rotate_left) / (2 * self.distance_btw_wheel)
-              # IMU 버전일 때 x, y 계산 중 무조건 else로 가야 해서(w!=0으로) 주석 풀어놓음
         # print("v=", self.transitional_velocity)
         # print("w=", self.rotational_velocity)
 
@@ -157,17 +156,17 @@ class OdometricLocalization:
 
         ### 회전반경 계산(엔코더 ver)
         self.theta = self.routes[-1][3] + self.rotational_velocity*self.t_delta
-        print("theta=", self.theta)
+        # print("theta=", self.theta)
 
         ### x, y 좌표값 계산
         if self.rotational_velocity==0:
             ### 회전 속도가 0일 때, runge-kutta integration
-            print("w=0")
+            # print("w=0")
             x = self.routes[-1][1] + self.transitional_velocity*self.t_delta*math.cos(self.theta + (self.rotational_velocity*self.t_delta)/2)
             y = self.routes[-1][2] + self.transitional_velocity*self.t_delta*math.sin(self.theta + (self.rotational_velocity*self.t_delta)/2)
         else:
             ### 회전 속도가 0이 아닐 때, exact integration
-            print("w!=0")
+            # print("w!=0")
             ### 엔코더 버전
             x = self.routes[-1][1] + (self.transitional_velocity/self.rotational_velocity) * (math.sin(self.routes[-1][3]) - math.sin(self.theta))
             y = self.routes[-1][2] - (self.transitional_velocity/self.rotational_velocity) * (math.cos(self.routes[-1][3]) - math.cos(self.theta))
