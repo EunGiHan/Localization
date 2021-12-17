@@ -19,10 +19,11 @@ from geometry_msgs.msg import Point32
 class OdometricLocalization:
     def __init__(self):
         ### ROS
-        rospy.Subscriber("/imu/data", Imu, self.imu_data_callback)  #IMU의 가속도, 각속도 값을 받아옴
+        self.ser = serial.Serial("/dev/gigacha/erp42", 115200)
+        rospy.Subscriber("/imu", Imu, self.imu_data_callback)  #IMU의 가속도, 각속도 값을 받아옴
         rospy.Subscriber("/Displacement_right",Int64, self.encoder_right_callback)
         rospy.Subscriber("/Displacement_left",Int64, self.encoder_left_callback)
-        rospy.Subscriber("/pose",Odometry, self.location_pub_from_gps)
+        rospy.Subscriber("/pose1",Odometry, self.location_pub_from_gps)
         self.odometric_loc_pub = rospy.Publisher("/odo_loc", OdometricLocation, queue_size=10)  # 현재의 위치 정보를 publish함
 
         ### Record & Values
@@ -94,8 +95,16 @@ class OdometricLocalization:
     
 
     ### 엔코더 좌측 바퀴 콜백 함수
-    def encoder_left_callback(self, msg):
-        self.rotate_left = msg.data/100
+    def encoder_left_callback(self):
+        while True:
+            packet = self.ser.read_until(b'\x0d\x0a')   
+            tmp1 = []
+            tmp1 = struct.unpack("i", packet[11:14])        
+
+            print(tmp1)
+
+            self.rotate_left = tmp1[0] + tmp1[1]*256 + tmp1[2]*256**2 + tmp1[3]*256**3
+            self.rotate_left = self.rotate_left/100
 
 
     def location_pub_from_gps(self,msg):
