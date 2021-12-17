@@ -22,7 +22,6 @@ class OdometricLocalization:
         self.ser = serial.Serial("/dev/gigacha/erp42", 115200)
         rospy.Subscriber("/imu", Imu, self.imu_data_callback)  #IMU의 가속도, 각속도 값을 받아옴
         rospy.Subscriber("/Displacement_right",Int64, self.encoder_right_callback)
-        rospy.Subscriber("/Displacement_left",Int64, self.encoder_left_callback)
         rospy.Subscriber("/pose1",Odometry, self.location_pub_from_gps)
         self.odometric_loc_pub = rospy.Publisher("/odo_loc", OdometricLocation, queue_size=10)  # 현재의 위치 정보를 publish함
 
@@ -49,8 +48,8 @@ class OdometricLocalization:
         self.linear_accel_x = 0  #연산 시점의 callback을 받아올 변수
         self.linear_accel_y_callback = 0
         self.linear_accel_y = 0
-        self.delta_theta_callback = 0
-        self.delta_theta = 0
+        self.delta_theta_callback = 0 
+        self.delta_theta = 0 
 
         ### Encoder data
         self.rotate_right = 0  # 우측 바퀴 엔코더 회전값
@@ -61,11 +60,12 @@ class OdometricLocalization:
         ### 시작지점에서 모두 0으로 기록 시작함
         self.routes.append([0, 0, 0, 0, 0, 0, 0]) #startpoint
 
-
+        ### Rviz 변수
         self.cur_points = PointCloud()
         self.cur_points.header.frame_id = 'world'
         self.cur_points.header.stamp = rospy.Time.now()
 
+        ### GPS 변수
         self.gps_points = PointCloud()
         self.gps_points.header.frame_id = 'world'
         self.gps_points.header.stamp = rospy.Time.now()
@@ -109,6 +109,7 @@ class OdometricLocalization:
         self.rotate_left_callback = self.rotate_left_callback/100
 
 
+    ### GPS 좌표를 publish함
     def location_pub_from_gps(self,msg):
         self.x  = msg.pose.pose.position.x
         self.y  = msg.pose.pose.position.y
@@ -193,6 +194,7 @@ class OdometricLocalization:
             = self.new_loc[0], self.new_loc[1], self.new_loc[2], self.new_loc[3], self.new_loc[4], self.new_loc[5], self.new_loc[6]
         self.odometric_loc_pub.publish(loc)
 
+    ### Rviz 상에 점을 표기함
     def location_pub_rviz(self,x,y):
         cur_point = Point32()
         cur_point.x = x
