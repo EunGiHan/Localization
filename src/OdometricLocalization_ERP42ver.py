@@ -91,20 +91,22 @@ class OdometricLocalization:
 
     ### 엔코더 우측 바퀴 콜백 함수
     def encoder_right_callback(self, msg):
-        self.rotate_right = msg.data/100
+        self.rotate_right_callback = msg.data/100
     
 
     ### 엔코더 좌측 바퀴 콜백 함수
     def encoder_left_callback(self):
-        while True:
-            packet = self.ser.read_until(b'\x0d\x0a')   
-            tmp1 = []
-            tmp1 = struct.unpack("i", packet[11:14])        
+        #while문 제거함
+        #범위를 [11:14]에서 [11:15]로 변경함. 맨 끝 값이 안들어오고 있었음
+        #따라서 tmp1 = [packet[11], packet[12], packet[13], packet[14]]으로 들어감
+        #만약에 안되면 포맷을 "i"에서 "BBBB"로 변경해봤으면 좋겠음!
+        packet = self.ser.read_until(b'\x0d\x0a')   
+        tmp1 = []
+        tmp1 = struct.unpack("i", packet[11:15]) 
+        print(tmp1)
 
-            print(tmp1)
-
-            self.rotate_left = tmp1[0] + tmp1[1]*256 + tmp1[2]*256**2 + tmp1[3]*256**3
-            self.rotate_left = self.rotate_left/100
+        self.rotate_left_callback = tmp1[0] + tmp1[1]*256 + tmp1[2]*256**2 + tmp1[3]*256**3
+        self.rotate_left_callback = self.rotate_left_callback/100
 
 
     def location_pub_from_gps(self,msg):
@@ -125,6 +127,8 @@ class OdometricLocalization:
         ### 현재 시간에서의 가속도와 각속도 값을 불러옴 (나중에 엔코더 부분도 추가해야 함)
         self.linear_accel_x = self.linear_accel_x_callback
         self.linear_accel_y = self.linear_accel_y_callback
+        self.rotate_right = self.rotate_right_callback
+        self.rotate_left = self.rotate_left_callback
         self.delta_theta = self.delta_theta_callback
 
         ### 시간 업데이트
@@ -203,6 +207,7 @@ def main():
 
     loc = OdometricLocalization()
     while not rospy.is_shutdown():
+        loc.encoder_left_callback()
         loc.calc_location()
         rate.sleep()
     
